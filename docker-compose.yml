@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # 1. The Backend API
+  api:
+    build: ./backend
+    container_name: pocketllm-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=db
+      - DB_USER=pocket_user
+      - DB_PASSWORD=pocket_password
+      - DB_NAME=pocketllm
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # 2. The Database
+  db:
+    image: mysql:8.0
+    container_name: pocketllm-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: pocketllm
+      MYSQL_USER: pocket_user
+      MYSQL_PASSWORD: pocket_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 3. The Frontend (New!)
+  web:
+    build: ./frontend
+    container_name: pocketllm-web
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    command: npm run dev -- --host
+
+volumes:
+  db_data:
