@@ -1,9 +1,11 @@
 const API_BASE = 'http://localhost:8000';
 
 export interface Message {
+  id?: number; // New: DB ID for feedback
   role: 'user' | 'assistant';
   content: string;
   timestamp?: string;
+  feedback?: 'up' | 'down' | null; // New: Feedback state
 }
 
 export interface Session {
@@ -13,10 +15,6 @@ export interface Session {
 }
 
 export const InferService = {
-  /**
-   * Streaming Inference using Server-Sent Events (SSE).
-   * Architecture Requirement: Surface "Effective Parameters" if possible.
-   */
   streamResponse: (
     prompt: string, 
     sessionId: string, 
@@ -36,7 +34,6 @@ export const InferService = {
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        // The backend sends { "token": "...", "cached": boolean }
         onToken(data.token);
       } catch (e) {
         console.error("Parse error", e);
@@ -44,18 +41,10 @@ export const InferService = {
     };
 
     eventSource.onerror = (err) => {
-      // EventSource tries to reconnect automatically, but we usually want to close on error for this app
       console.error("Stream Error:", err);
       eventSource.close();
-      onComplete(); // Treat error as completion of stream for UI safety
+      onComplete();
     };
-
-    // Close the connection explicitly when needed? 
-    // Usually the server closes it, but EventSource keeps listening.
-    // For this prototype, we rely on the server keeping the connection open 
-    // until done, or we detect a "done" signal if we implemented one.
-    // Since our backend generator just finishes, the browser might try to reconnect.
-    // We will attach a listener for the component to close it.
     
     return eventSource; 
   },
@@ -73,5 +62,14 @@ export const InferService = {
   getMetrics: async () => {
     const res = await fetch(`${API_BASE}/metrics`);
     return res.json();
+  },
+
+  // New: Submit Feedback
+  submitFeedback: async (messageId: number, vote: 'up' | 'down') => {
+    await fetch(`${API_BASE}/messages/${messageId}/feedback`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vote })
+    });
   }
 };
