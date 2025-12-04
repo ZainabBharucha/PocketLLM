@@ -97,6 +97,11 @@ async def infer_stream(
     
     if cache_key in RESPONSE_CACHE:
         METRICS["cache_hits"] += 1
+        
+        # --- FIX: Persist Cache Hits to DB ---
+        save_message_to_db(session_id, "user", prompt)
+        save_message_to_db(session_id, "assistant", RESPONSE_CACHE[cache_key])
+        
         async def cached_generator():
             yield json.dumps({"token": RESPONSE_CACHE[cache_key], "cached": True})
         return EventSourceResponse(cached_generator())
